@@ -1,0 +1,61 @@
+# AlphaGenome Web Deployment - Docker Compose
+#
+# Usage:
+#   docker compose up --build
+#
+# For GPU support (NVIDIA):
+#   docker compose --profile gpu up --build
+
+services:
+  # ─── CPU-only deployment ──────────────────────────────────────────────────
+  alphagenome-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - HF_TOKEN=${HF_TOKEN}
+      - ALPHAGENOME_MODEL_VERSION=${ALPHAGENOME_MODEL_VERSION:-all_folds}
+      - PRELOAD_MODEL=${PRELOAD_MODEL:-true}
+      - HOST=0.0.0.0
+      - PORT=8000
+    volumes:
+      - model-cache:/home/appuser/.cache
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 30s
+      timeout: 10s
+      start_period: 300s
+      retries: 3
+
+  # ─── GPU-enabled deployment (NVIDIA) ──────────────────────────────────────
+  alphagenome-web-gpu:
+    build:
+      context: .
+      dockerfile: Dockerfile.gpu
+    ports:
+      - "8000:8000"
+    environment:
+      - HF_TOKEN=${HF_TOKEN}
+      - ALPHAGENOME_MODEL_VERSION=${ALPHAGENOME_MODEL_VERSION:-all_folds}
+      - PRELOAD_MODEL=${PRELOAD_MODEL:-true}
+      - HOST=0.0.0.0
+      - PORT=8000
+      - XLA_PYTHON_CLIENT_PREALLOCATE=false
+    volumes:
+      - model-cache:/home/appuser/.cache
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
+    profiles:
+      - gpu
+
+volumes:
+  model-cache:

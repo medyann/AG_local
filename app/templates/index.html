@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AlphaGenome Web Interface</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">
+                <svg class="logo-icon" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M16 2C8.268 2 2 8.268 2 16s6.268 14 14 14 14-6.268 14-14S23.732 2 16 2z" fill="url(#grad1)" opacity="0.15"/>
+                    <path d="M10 20c2-6 4-12 6-12s4 6 6 12" stroke="url(#grad1)" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+                    <path d="M11 16h10" stroke="url(#grad1)" stroke-width="2" stroke-linecap="round"/>
+                    <defs>
+                        <linearGradient id="grad1" x1="0" y1="0" x2="32" y2="32">
+                            <stop offset="0%" stop-color="#6366f1"/>
+                            <stop offset="100%" stop-color="#8b5cf6"/>
+                        </linearGradient>
+                    </defs>
+                </svg>
+                <div>
+                    <h1>AlphaGenome</h1>
+                    <span class="subtitle">Regulatory Variant-Effect Prediction</span>
+                </div>
+            </div>
+            <div class="header-actions">
+                <div id="model-status" class="status-badge status-loading">
+                    <span class="status-dot"></span>
+                    <span class="status-text">Checking...</span>
+                </div>
+                <a href="/docs" class="btn btn-ghost" target="_blank">API Docs</a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main">
+        <!-- Tab Navigation -->
+        <div class="tabs">
+            <button class="tab active" data-tab="interval">Interval Prediction</button>
+            <button class="tab" data-tab="variant">Variant Effect</button>
+            <button class="tab" data-tab="sequence">Sequence Prediction</button>
+        </div>
+
+        <!-- Interval Prediction Tab -->
+        <div class="tab-content active" id="tab-interval">
+            <div class="card">
+                <div class="card-header">
+                    <h2>Genomic Interval Prediction</h2>
+                    <p>Predict functional genomic signals for a specified chromosomal region (up to 1 Mb).</p>
+                </div>
+                <form id="interval-form" class="form">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="interval-chr">Chromosome</label>
+                            <input type="text" id="interval-chr" placeholder="chr22" value="chr22" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="interval-start">Start Position</label>
+                            <input type="number" id="interval-start" placeholder="35677410" value="35677410" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="interval-end">End Position</label>
+                            <input type="number" id="interval-end" placeholder="36725986" value="36725986" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="interval-organism">Organism</label>
+                            <select id="interval-organism">
+                                <option value="human" selected>Human (Homo sapiens)</option>
+                                <option value="mouse">Mouse (Mus musculus)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="interval-outputs">Output Types</label>
+                            <select id="interval-outputs" multiple>
+                                <option value="rna_seq" selected>RNA-seq</option>
+                                <option value="cage">CAGE</option>
+                                <option value="dnase">DNase-seq</option>
+                                <option value="atac">ATAC-seq</option>
+                                <option value="chip_histone">Histone ChIP-seq</option>
+                                <option value="chip_tf">TF ChIP-seq</option>
+                                <option value="splice_sites">Splice Sites</option>
+                                <option value="splice_site_usage">Splice Site Usage</option>
+                                <option value="splice_junctions">Splice Junctions</option>
+                                <option value="contact_maps">Contact Maps</option>
+                                <option value="procap">PRO-cap</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="interval-ontology">Ontology Terms <span class="optional">(optional)</span></label>
+                            <input type="text" id="interval-ontology" placeholder="UBERON:0001157">
+                            <small>Comma-separated ontology terms</small>
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" onclick="loadExample('interval', 0)">Load Example</button>
+                        <button type="submit" class="btn btn-primary" id="interval-submit">
+                            <span class="btn-text">Run Prediction</span>
+                            <span class="btn-loading hidden">Running...</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Variant Prediction Tab -->
+        <div class="tab-content" id="tab-variant">
+            <div class="card">
+                <div class="card-header">
+                    <h2>Variant Effect Prediction</h2>
+                    <p>Compare model predictions for reference and alternate alleles to assess functional impact.</p>
+                </div>
+                <form id="variant-form" class="form">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="variant-chr">Chromosome</label>
+                            <input type="text" id="variant-chr" placeholder="chr22" value="chr22" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="variant-start">Interval Start</label>
+                            <input type="number" id="variant-start" placeholder="35677410" value="35677410" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="variant-end">Interval End</label>
+                            <input type="number" id="variant-end" placeholder="36725986" value="36725986" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="variant-pos">Variant Position</label>
+                            <input type="number" id="variant-pos" placeholder="36201698" value="36201698" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="variant-ref">Reference Bases</label>
+                            <input type="text" id="variant-ref" placeholder="A" value="A" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="variant-alt">Alternate Bases</label>
+                            <input type="text" id="variant-alt" placeholder="C" value="C" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="variant-organism">Organism</label>
+                            <select id="variant-organism">
+                                <option value="human" selected>Human (Homo sapiens)</option>
+                                <option value="mouse">Mouse (Mus musculus)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="variant-outputs">Output Types</label>
+                            <select id="variant-outputs" multiple>
+                                <option value="rna_seq" selected>RNA-seq</option>
+                                <option value="cage">CAGE</option>
+                                <option value="dnase">DNase-seq</option>
+                                <option value="atac">ATAC-seq</option>
+                                <option value="chip_histone">Histone ChIP-seq</option>
+                                <option value="chip_tf">TF ChIP-seq</option>
+                                <option value="splice_sites">Splice Sites</option>
+                                <option value="procap">PRO-cap</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="variant-ontology">Ontology Terms <span class="optional">(optional)</span></label>
+                            <input type="text" id="variant-ontology" placeholder="UBERON:0001157" value="UBERON:0001157">
+                            <small>Comma-separated ontology terms</small>
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" onclick="loadExample('variant', 0)">Load Example</button>
+                        <button type="submit" class="btn btn-primary" id="variant-submit">
+                            <span class="btn-text">Run Prediction</span>
+                            <span class="btn-loading hidden">Running...</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Sequence Prediction Tab -->
+        <div class="tab-content" id="tab-sequence">
+            <div class="card">
+                <div class="card-header">
+                    <h2>Sequence Prediction</h2>
+                    <p>Provide a raw DNA sequence (A, C, G, T) for direct prediction.</p>
+                </div>
+                <form id="sequence-form" class="form">
+                    <div class="form-group">
+                        <label for="sequence-input">DNA Sequence</label>
+                        <textarea id="sequence-input" rows="6" placeholder="Enter DNA sequence (A, C, G, T characters)...&#10;Supports up to 1,048,576 base pairs." required></textarea>
+                        <small id="seq-length">Length: 0 bp</small>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="sequence-organism">Organism</label>
+                            <select id="sequence-organism">
+                                <option value="human" selected>Human (Homo sapiens)</option>
+                                <option value="mouse">Mouse (Mus musculus)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="sequence-outputs">Output Types</label>
+                            <select id="sequence-outputs" multiple>
+                                <option value="rna_seq" selected>RNA-seq</option>
+                                <option value="cage">CAGE</option>
+                                <option value="dnase">DNase-seq</option>
+                                <option value="atac">ATAC-seq</option>
+                                <option value="chip_histone">Histone ChIP-seq</option>
+                                <option value="chip_tf">TF ChIP-seq</option>
+                                <option value="splice_sites">Splice Sites</option>
+                                <option value="procap">PRO-cap</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="sequence-ontology">Ontology Terms <span class="optional">(optional)</span></label>
+                            <input type="text" id="sequence-ontology" placeholder="UBERON:0001157">
+                            <small>Comma-separated ontology terms</small>
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary" id="sequence-submit">
+                            <span class="btn-text">Run Prediction</span>
+                            <span class="btn-loading hidden">Running...</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Results Section -->
+        <div id="results-section" class="hidden">
+            <div class="card">
+                <div class="card-header">
+                    <h2>Prediction Results</h2>
+                    <div class="result-actions">
+                        <button class="btn btn-ghost btn-sm" onclick="downloadResults()">Download JSON</button>
+                    </div>
+                </div>
+                <div id="results-info" class="results-info"></div>
+                <div id="charts-container" class="charts-container"></div>
+                <details class="raw-json-details">
+                    <summary>Raw JSON Response</summary>
+                    <pre id="raw-json" class="raw-json"></pre>
+                </details>
+            </div>
+        </div>
+
+        <!-- Error Section -->
+        <div id="error-section" class="hidden">
+            <div class="card card-error">
+                <h3>Error</h3>
+                <p id="error-message"></p>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <p>
+            Powered by <a href="https://huggingface.co/google/alphagenome-all-folds" target="_blank">AlphaGenome</a>
+            by Google DeepMind &mdash;
+            <a href="/docs" target="_blank">API Documentation</a>
+        </p>
+    </footer>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

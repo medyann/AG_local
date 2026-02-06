@@ -1,0 +1,13 @@
+# AlphaGenome Web Deployment
+# Core model
+alphagenome_research @ git+https://github.com/google-deepmind/alphagenome_research.git
+
+# Web framework
+fastapi>=0.100.0
+uvicorn[standard]>=0.20.0
+python-multipart>=0.0.6
+
+# Utilities
+pydantic>=2.0.0
+numpy
+jinja2>=3.1.0

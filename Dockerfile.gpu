@@ -1,0 +1,50 @@
+# AlphaGenome Web Deployment - GPU-enabled (NVIDIA CUDA)
+
+FROM nvidia/cuda:12.4.1-runtime-ubuntu22.04
+
+# Install Python and system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3.12 \
+    python3.12-venv \
+    python3.12-dev \
+    python3-pip \
+    build-essential \
+    git \
+    libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create venv and install dependencies
+RUN python3.12 -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+WORKDIR /app
+
+COPY requirements.txt .
+
+# Install JAX with CUDA support, then remaining dependencies
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
+    pip install --no-cache-dir "jax[cuda12]" && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY app/ ./app/
+COPY run.py .
+
+# Create non-root user
+RUN useradd --create-home appuser
+USER appuser
+
+# Environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    HOST=0.0.0.0 \
+    PORT=8000 \
+    PRELOAD_MODEL=true \
+    XLA_PYTHON_CLIENT_PREALLOCATE=false
+
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=300s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"
+
+CMD ["python", "run.py"]
