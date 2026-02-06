@@ -38,6 +38,7 @@ export HF_TOKEN="hf_..."
 3) Start the server:
 
 ```bash
+sudo apt-get update && sudo apt-get install -y build-essential python3-dev
 python3 -m pip install -r requirements.txt
 ALPHAGENOME_BACKEND=alphagenome uvicorn service.main:app --host 0.0.0.0 --port 8000
 ```

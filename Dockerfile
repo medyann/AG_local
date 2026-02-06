@@ -5,8 +5,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Needed for installing alphagenome_research from git
-RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
+# Needed for installing alphagenome_research + native deps (e.g. sorted_nearest)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    build-essential \
+  && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt /app/requirements.txt
 RUN python -m pip install --upgrade pip && pip install --no-cache-dir -r /app/requirements.txt
