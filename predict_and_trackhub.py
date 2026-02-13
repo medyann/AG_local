@@ -143,9 +143,12 @@ TARGET_START = 32_114_094
 TARGET_END   = 32_179_698
 ORGANISM     = dna_model.Organism.MUS_MUSCULUS
 
-# Standard AlphaGenome receptive field (2^17 bp).  The 65 604 bp target
-# region fits comfortably inside this window.
-MODEL_INPUT_LENGTH = 131_072
+# The target region is 65,604 bp.  The input must be divisible by 2,048
+# (the model uses 128 bp encoder stride with 16x pair-attention stride).
+# 67,584 = 33 * 2,048  is the smallest such value covering the target.
+# Using the full 131,072 bp (2^17) window is possible on GPU but may
+# exceed 16 GB RAM on CPU.
+MODEL_INPUT_LENGTH = 67_584  # 33 * 2048
 
 # Output types that produce 1-D positional tracks (suitable for bigWig).
 BIGWIG_OUTPUT_TYPES = [
