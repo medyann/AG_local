@@ -36,9 +36,20 @@ Requirements
   pip install git+https://github.com/google-deepmind/alphagenome_research.git
   pip install pyBigWig
 
-  For model download you need **one** of:
-    * Kaggle credentials  (KAGGLE_USERNAME / KAGGLE_KEY env-vars, or ~/.kaggle/kaggle.json)
-    * HuggingFace token   (huggingface-cli login)
+  The model checkpoint is free but "gated" — you must create a free account
+  and agree to the licence before you can download it.
+
+  Option A – HuggingFace (recommended):
+    1. Create a free account at  https://huggingface.co/join
+    2. Accept the licence at     https://huggingface.co/google/alphagenome-all-folds
+    3. Create a token at         https://huggingface.co/settings/tokens
+    4. export HF_TOKEN=hf_xxxxxxxxxxxxxxxxx
+
+  Option B – Kaggle:
+    1. Create a free account at  https://www.kaggle.com
+    2. Accept the licence at     https://www.kaggle.com/models/google/alphagenome
+    3. Go to Account → API → Create New Token  (downloads kaggle.json)
+    4. export KAGGLE_USERNAME=xxx  KAGGLE_KEY=xxx
 """
 
 from __future__ import annotations
@@ -68,6 +79,34 @@ from alphagenome.data import track_data as track_data_module
 from alphagenome.models import dna_model, dna_output
 from alphagenome_research.model import dna_model as ag_dna_model
 from alphagenome_research.model.metadata import metadata as metadata_lib
+
+
+def _setup_authentication() -> None:
+    """Pre-authenticate with HuggingFace / Kaggle using env-vars if available.
+
+    HuggingFace's ``huggingface_hub`` checks for HF_TOKEN (or
+    HUGGING_FACE_HUB_TOKEN) automatically in many codepaths, but
+    ``snapshot_download`` inside ``create_from_huggingface`` calls
+    ``huggingface_hub.whoami()`` first and falls into an interactive login
+    prompt if no cached token exists.  Calling ``login()`` here avoids that.
+    """
+    # --- HuggingFace ---
+    hf_token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN")
+    if hf_token:
+        import huggingface_hub
+        try:
+            huggingface_hub.login(token=hf_token, add_to_git_credential=False)
+            who = huggingface_hub.whoami()
+            name = who.get("name") or who.get("fullname") or who.get("username", "?")
+            print(f"HuggingFace: authenticated as {name}")
+        except Exception as exc:
+            print(f"HuggingFace login warning: {exc}")
+
+    # --- Kaggle ---
+    kaggle_user = os.environ.get("KAGGLE_USERNAME")
+    kaggle_key = os.environ.get("KAGGLE_KEY")
+    if kaggle_user and kaggle_key:
+        print(f"Kaggle: credentials found for {kaggle_user}")
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Constants
@@ -421,6 +460,9 @@ def main() -> None:
 
     model_version = ag_dna_model.ModelVersion[args.model_version]
 
+    # ── Authenticate ──────────────────────────────────────────────────────
+    _setup_authentication()
+
     # ── Resolve device ────────────────────────────────────────────────────
     if args.device:
         device = jax.devices(args.device)[0]
@@ -456,18 +498,33 @@ def main() -> None:
             )
     except Exception as exc:
         print(f"\nERROR loading model: {exc}\n")
-        print("The AlphaGenome model checkpoint is gated and requires authentication.")
-        print("Please configure ONE of the following:\n")
-        print("  Option A – HuggingFace:")
-        print("    1. Accept the licence at https://huggingface.co/google/alphagenome-all-folds")
-        print("    2. export HF_TOKEN=<your-huggingface-token>")
-        print("       OR run:  huggingface-cli login\n")
-        print("  Option B – Kaggle:")
-        print("    1. Accept the licence at https://www.kaggle.com/models/google/alphagenome")
-        print("    2. export KAGGLE_USERNAME=<your-username>")
-        print("       export KAGGLE_KEY=<your-api-key>")
-        print("       OR place ~/.kaggle/kaggle.json\n")
-        print("Then re-run this script.")
+        print("=" * 70)
+        print("The AlphaGenome model is FREE but the download requires a (free)")
+        print("account so the hosting platform knows you agree to the licence.")
+        print("=" * 70)
+        print()
+        print("  OPTION A  –  HuggingFace  (recommended, ~2 min setup)")
+        print("  ─────────────────────────────────────────────────────")
+        print("  1. Create a free account:")
+        print("       https://huggingface.co/join")
+        print("  2. Visit the model page and click 'Agree and access repository':")
+        print("       https://huggingface.co/google/alphagenome-all-folds")
+        print("  3. Create an access token (select 'Read' permission):")
+        print("       https://huggingface.co/settings/tokens")
+        print("  4. Run this before the script:")
+        print("       export HF_TOKEN=hf_xxxxxxxxxxxxxxxxxxxx")
+        print()
+        print("  OPTION B  –  Kaggle")
+        print("  ───────────────────")
+        print("  1. Create a free account at https://www.kaggle.com")
+        print("  2. Accept the licence:")
+        print("       https://www.kaggle.com/models/google/alphagenome")
+        print("  3. Go to Account → API → Create New Token")
+        print("  4. Run this before the script:")
+        print("       export KAGGLE_USERNAME=your_username")
+        print("       export KAGGLE_KEY=your_api_key")
+        print()
+        print("Then re-run:  python predict_and_trackhub.py")
         sys.exit(1)
 
     print("Model loaded.\n")

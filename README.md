@@ -108,23 +108,28 @@ pip install pyBigWig
 
 ### 2. Authenticate for model download
 
-The AlphaGenome checkpoint is a gated model. You need ONE of:
+AlphaGenome is **completely free** for academic research.  The model weights
+are hosted on HuggingFace / Kaggle as a "gated" download, which just means the
+platform asks you to create a free account and click "agree" on the licence
+page before it lets you download.  It takes about 2 minutes, one time only.
 
 **Option A – HuggingFace** (recommended):
-1. Accept the licence at https://huggingface.co/google/alphagenome-all-folds
-2. Set your token:
-   ```bash
-   export HF_TOKEN=hf_xxxxxxxxxxxxxxxxxxxxxxxxx
-   # OR: huggingface-cli login
-   ```
+
+| Step | What to do |
+|------|------------|
+| 1    | Create a free account at https://huggingface.co/join |
+| 2    | Go to https://huggingface.co/google/alphagenome-all-folds and click **"Agree and access repository"** |
+| 3    | Go to https://huggingface.co/settings/tokens → **Create new token** → choose **Read** access → copy the token |
+| 4    | In your terminal: `export HF_TOKEN=hf_xxxxxxxxxxxxxxxxxxxx` |
 
 **Option B – Kaggle**:
-1. Accept the licence at https://www.kaggle.com/models/google/alphagenome
-2. Set your credentials:
-   ```bash
-   export KAGGLE_USERNAME=your_username
-   export KAGGLE_KEY=your_api_key
-   ```
+
+| Step | What to do |
+|------|------------|
+| 1    | Create a free account at https://www.kaggle.com |
+| 2    | Go to https://www.kaggle.com/models/google/alphagenome and accept the licence |
+| 3    | Go to your Kaggle Account page → API section → **Create New Token** (downloads `kaggle.json`) |
+| 4    | In your terminal: `export KAGGLE_USERNAME=your_username` and `export KAGGLE_KEY=your_api_key` |
 
 ### 3. Run the prediction script
 
