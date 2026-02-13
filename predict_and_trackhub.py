@@ -445,14 +445,31 @@ def main() -> None:
     print(f"\nLoading AlphaGenome model ({model_version.name}) "
           f"from {args.model_source} ...")
 
-    if args.model_source == "kaggle":
-        ag_model = ag_dna_model.create_from_kaggle(
-            model_version, device=device,
-        )
-    else:
-        ag_model = ag_dna_model.create_from_huggingface(
-            model_version, device=device,
-        )
+    try:
+        if args.model_source == "kaggle":
+            ag_model = ag_dna_model.create_from_kaggle(
+                model_version, device=device,
+            )
+        else:
+            ag_model = ag_dna_model.create_from_huggingface(
+                model_version, device=device,
+            )
+    except Exception as exc:
+        print(f"\nERROR loading model: {exc}\n")
+        print("The AlphaGenome model checkpoint is gated and requires authentication.")
+        print("Please configure ONE of the following:\n")
+        print("  Option A – HuggingFace:")
+        print("    1. Accept the licence at https://huggingface.co/google/alphagenome-all-folds")
+        print("    2. export HF_TOKEN=<your-huggingface-token>")
+        print("       OR run:  huggingface-cli login\n")
+        print("  Option B – Kaggle:")
+        print("    1. Accept the licence at https://www.kaggle.com/models/google/alphagenome")
+        print("    2. export KAGGLE_USERNAME=<your-username>")
+        print("       export KAGGLE_KEY=<your-api-key>")
+        print("       OR place ~/.kaggle/kaggle.json\n")
+        print("Then re-run this script.")
+        sys.exit(1)
+
     print("Model loaded.\n")
 
     # ── Determine available outputs for mouse ─────────────────────────────
