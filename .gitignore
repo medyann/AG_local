@@ -1,3 +1,1 @@
 .venv/
-# bigWig files are large — regenerate with: python predict_and_trackhub.py
-trackhub_output/mm10/**/*.bw
