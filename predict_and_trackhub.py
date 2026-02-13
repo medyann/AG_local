@@ -72,6 +72,7 @@ except Exception:
     pass
 
 import jax
+import jax.numpy as jnp
 import pyBigWig
 
 from alphagenome.data import genome
@@ -79,6 +80,32 @@ from alphagenome.data import track_data as track_data_module
 from alphagenome.models import dna_model, dna_output
 from alphagenome_research.model import dna_model as ag_dna_model
 from alphagenome_research.model.metadata import metadata as metadata_lib
+
+
+def _patch_bf16_for_cpu() -> None:
+    """Patch bfloat16 dot-product precision for CPU compatibility.
+
+    AlphaGenome's attention and junction heads hard-code
+    ``precision=jax.lax.DotAlgorithmPreset.BF16_BF16_F32`` in several
+    ``jnp.einsum`` calls.  That algorithm preset is only available on
+    GPU/TPU; on CPU it raises INVALID_ARGUMENT.
+
+    This function monkey-patches ``jnp.einsum`` so that the unsupported
+    preset is silently replaced with ``jax.lax.Precision.HIGHEST``,
+    which gives correct (float32) results on CPU.
+    """
+    if jax.devices()[0].platform != "cpu":
+        return  # No patching needed on GPU/TPU.
+
+    _original_einsum = jnp.einsum
+
+    def _patched_einsum(*args, precision=None, **kwargs):
+        if isinstance(precision, jax.lax.DotAlgorithmPreset):
+            precision = jax.lax.Precision.HIGHEST
+        return _original_einsum(*args, precision=precision, **kwargs)
+
+    jnp.einsum = _patched_einsum
+    print("Applied bfloat16 → float32 einsum patch for CPU.")
 
 
 def _setup_authentication() -> None:
@@ -133,12 +160,12 @@ BIGWIG_OUTPUT_TYPES = [
     dna_output.OutputType.PROCAP,
 ]
 
-# Contact maps are 2-D matrices and cannot be represented as bigWig.
-# Splice junctions are sparse pair-wise data – also not bigWig-compatible.
-# Both are still *predicted* but not exported to the track hub.
+# Contact maps are 2-D matrices – predicted but exported separately (not bigWig).
+# Splice junctions are sparse pair-wise data – also not bigWig-compatible and
+# require a separate prediction pathway (predict_junctions), so they are
+# excluded from the standard predict_interval call.
 ALL_OUTPUT_TYPES = BIGWIG_OUTPUT_TYPES + [
     dna_output.OutputType.CONTACT_MAPS,
-    dna_output.OutputType.SPLICE_JUNCTIONS,
 ]
 
 # mm10 chromosome sizes (GRCm38)
@@ -483,6 +510,9 @@ def main() -> None:
     print(f"JAX back-ends : {jax.devices()}")
     print(f"Using device  : {device}")
 
+    # Patch bfloat16 einsum for CPU (no-op on GPU/TPU).
+    _patch_bf16_for_cpu()
+
     # ── Load model ────────────────────────────────────────────────────────
     print(f"\nLoading AlphaGenome model ({model_version.name}) "
           f"from {args.model_source} ...")
@@ -556,12 +586,62 @@ def main() -> None:
     print(f"Prediction window  : {pred_interval}  ({MODEL_INPUT_LENGTH:,} bp)")
 
     # ── Run predictions ───────────────────────────────────────────────────
+    #
+    # We call the model's apply_fn directly rather than predict_interval.
+    # Reason: predict_interval's JIT-traced reverse-complement path hits a
+    # shape assertion for splice-junctions (the junction head is sized to
+    # max(human, mouse) tissues, but the mouse-only strand_reindexing is
+    # smaller).  Since we predict on the positive strand (no reverse-
+    # complement needed), we bypass that code path entirely.
+    #
     print("\nRunning predictions (this may take a while on CPU) ...")
-    output: dna_output.Output = ag_model.predict_interval(
-        pred_interval,
-        organism=ORGANISM,
-        requested_outputs=available_outputs,
-        ontology_terms=None,        # predict all available cell-types / tissues
+
+    _meta = ag_model._metadata[ORGANISM]
+
+    # Build a fresh apply_fn from the same metadata used at model creation.
+    all_metadata = {org: metadata_lib.load(org) for org in dna_model.Organism}
+    _, apply_fn, _ = ag_dna_model.create_model(all_metadata)
+
+    # One-hot encode the DNA sequence from the reference FASTA.
+    _encoder = ag_dna_model.one_hot_encoder.DNAOneHotEncoder()
+    _fasta = ag_model._fasta_extractors[ORGANISM]
+    sequence_str = _fasta.extract(pred_interval)
+    sequence_np = np.asarray(_encoder.encode(sequence_str), dtype=np.float32)[
+        np.newaxis
+    ]
+    organism_idx = np.full(
+        (1,), ag_dna_model.convert_to_organism_index(ORGANISM), dtype=np.int32
+    )
+
+    seq_jax = jax.device_put(sequence_np, device)
+    org_jax = jax.device_put(organism_idx, device)
+
+    # Forward pass (no reverse-complement, no JIT for first call).
+    raw_predictions = apply_fn(
+        ag_model._params, ag_model._state, seq_jax, org_jax,
+    )
+
+    # Extract predictions keyed by OutputType.
+    predictions = ag_dna_model.extract_predictions(raw_predictions)
+
+    # Filter to requested output types and remove padding tracks.
+    track_masks = metadata_lib.create_track_masks(
+        _meta,
+        requested_outputs=set(available_outputs),
+        requested_ontologies=None,
+    )
+    predictions = ag_dna_model._filter_predictions(
+        predictions, track_masks=jax.device_put(track_masks, device),
+    )
+    # Squeeze batch dim and upcast to float32.
+    predictions = ag_dna_model._upcast_single_batch_predictions(predictions)
+
+    # Construct the Output dataclass.
+    output: dna_output.Output = ag_dna_model._construct_output_from_predictions(
+        predictions,
+        track_masks=track_masks,
+        metadata=_meta,
+        interval=pred_interval,
     )
     print("Predictions complete.\n")
 
