@@ -1,0 +1,5 @@
+hub AlphaGenome_mm10_predictions
+shortLabel AlphaGenome Predictions
+longLabel AlphaGenome predicted genomic tracks – mm10 chr11:32114094-32179698
+genomesFile genomes.txt
+email alphagenome@example.com
